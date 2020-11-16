@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"os"
 	"os/signal"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -22,11 +23,14 @@ var commands = []string{
 	"!clear",
 	"!frase",
 	"!jogo",
+	"!lista",
 }
 
-var done = make(chan error)
-
 var audioMap = make(map[string]string)
+
+var playing = make(chan error)
+
+var isPlaying = false
 
 func readAudioConfig(configPath string) {
 	file, err := os.Open(configPath)
@@ -38,17 +42,42 @@ func readAudioConfig(configPath string) {
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
-	scanner.Split(bufio.ScanWords)
+	scanner.Split(bufio.ScanLines)
 
-	var words []string
+	var lines []string
 
 	for scanner.Scan() {
-		words = append(words, scanner.Text())
+		lines = append(lines, scanner.Text())
 	}
 
-	for i := 0; i < len(words)-1; i += 2 {
-		audioMap[words[i]] = words[i+1]
+	for _, s := range lines {
+		split := strings.Split(s, ";")
+		if len(split) != 2 {
+			continue
+		}
+
+		fmt.Println(split[0], split[1])
+
+		audioMap[split[0]] = split[1]
 	}
+}
+
+func getAudioList() string {
+	var lista []string
+	for key := range audioMap {
+		lista = append(lista, key)
+	}
+
+	sort.Strings(lista)
+
+	ret := "Áudios disponíveis: \n"
+
+	for _, s := range lista {
+		ret += s
+		ret += "\n"
+	}
+
+	return ret
 }
 
 func playSound(s *discordgo.Session, guildID, channelID string, audiofile string) (err error) {
@@ -59,8 +88,6 @@ func playSound(s *discordgo.Session, guildID, channelID string, audiofile string
 	}
 
 	vc.Speaking(true)
-	defer vc.Speaking(false)
-	defer vc.Disconnect()
 
 	opts := dca.StdEncodeOptions
 	opts.RawOutput = true
@@ -72,18 +99,22 @@ func playSound(s *discordgo.Session, guildID, channelID string, audiofile string
 		return err
 	}
 
-	done = make(chan error)
-	stream := dca.NewStream(encodeSession, vc, done)
+	stream := dca.NewStream(encodeSession, vc, playing)
 	ticker := time.NewTicker(time.Second)
 
 	for {
 		select {
-		case err := <-done:
+		case err := <-playing:
 			if err != nil && err != io.EOF {
 				fmt.Println("An error occured", err)
+				vc.Speaking(false)
+				vc.Disconnect()
 				return err
 			}
-			encodeSession.Truncate()
+
+			vc.Speaking(false)
+			vc.Disconnect()
+			encodeSession.Cleanup()
 			return nil
 
 		case <-ticker.C:
@@ -96,29 +127,38 @@ func playSound(s *discordgo.Session, guildID, channelID string, audiofile string
 }
 
 func joinVoice(s *discordgo.Session, m *discordgo.MessageCreate, audiofile string) {
+	vs, err := findVoiceChannel(s, m)
+	if err != nil {
+		return
+	}
+
+	err = playSound(s, m.GuildID, vs, audiofile)
+	if err != nil {
+		fmt.Println("Could not play sound: ", err)
+		return
+	}
+}
+
+func findVoiceChannel(s *discordgo.Session, m *discordgo.MessageCreate) (string, error) {
 	c, err := s.State.Channel(m.ChannelID)
 	if err != nil {
 		fmt.Println("Could not find channel: ", err)
-		return
+		return "", err
 	}
 
 	g, err := s.State.Guild(c.GuildID)
 	if err != nil {
 		fmt.Println("Could not find guild: ", err)
-		return
+		return "", err
 	}
 
 	for _, vs := range g.VoiceStates {
 		if vs.UserID == m.Author.ID {
-			err = playSound(s, g.ID, vs.ChannelID, audiofile)
-			if err != nil {
-				fmt.Println("Could not play sound: ", err)
-				return
-			}
-
-			return
+			return vs.ChannelID, nil
 		}
 	}
+
+	return "", fmt.Errorf("Could not find voice channel")
 }
 
 func messageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
@@ -126,39 +166,49 @@ func messageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 
-	split := strings.Split(m.Content, " ")
+	split := strings.SplitN(m.Content, " ", 2)
 	if len(split) == 0 {
 		return
 	}
 
-	if split[0] == "!audio" {
-		if val, ok := audioMap[split[1]]; ok {
-			joinVoice(s, m, val)
+	switch {
+	case split[0] == "!audio":
+		if !isPlaying {
+			isPlaying = true
+			if val, ok := audioMap[split[1]]; ok {
+				fmt.Println("Requested: ", val)
+				joinVoice(s, m, val)
+			} else {
+				fmt.Println("Not found: ", split[1])
+			}
+			isPlaying = false
 		}
-	}
 
-	if split[0] == "!stop" {
-		done <- fmt.Errorf("Stop")
-	}
+	case split[0] == "!stop":
+		if isPlaying {
+			playing <- io.EOF
+		}
 
-	if split[0] == "!clear" {
+	case split[0] == "!clear":
 		clearMessages(s, m)
-	}
 
-	if split[0] == "!frase" {
+	case split[0] == "!frase":
 		msg := GeraFrase()
 		sendMessage(s, m, msg)
-	}
 
-	if split[0] == "!frasetts" {
+	case split[0] == "!frasetts":
 		msg := GeraFrase()
 		sendMessageTTS(s, m, msg)
-	}
 
-	if split[0] == "!jogo" {
+	case split[0] == "!jogo":
 		jogo := GeraJogo()
 		changeGame(s, m, jogo)
+
+	case split[0] == "!lista":
+		lista := getAudioList()
+		sendMessage(s, m, lista)
 	}
+
 }
 
 func changeGame(s *discordgo.Session, m *discordgo.MessageCreate, game string) {
