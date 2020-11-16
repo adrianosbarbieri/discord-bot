@@ -187,6 +187,7 @@ func messageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
 	case split[0] == "!stop":
 		if isPlaying {
 			playing <- io.EOF
+			isPlaying = false
 		}
 
 	case split[0] == "!clear":
