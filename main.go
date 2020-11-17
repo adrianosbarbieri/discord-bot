@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"sort"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -31,6 +32,8 @@ var audioMap = make(map[string]string)
 var playing = make(chan error)
 
 var isPlaying = false
+
+var playingMutex sync.Mutex
 
 func readAudioConfig(configPath string) {
 	file, err := os.Open(configPath)
@@ -71,11 +74,14 @@ func getAudioList() string {
 	sort.Strings(lista)
 
 	ret := "Áudios disponíveis: \n"
+	ret += "```\n"
 
 	for _, s := range lista {
 		ret += s
 		ret += "\n"
 	}
+
+	ret += "\n```"
 
 	return ret
 }
@@ -99,6 +105,13 @@ func playSound(s *discordgo.Session, guildID, channelID string, audiofile string
 		return err
 	}
 
+	playingMutex.Lock()
+	isPlaying = true
+	playing = make(chan error)
+	playingMutex.Unlock()
+
+	fmt.Println("Playing: ", len(playing))
+
 	stream := dca.NewStream(encodeSession, vc, playing)
 	ticker := time.NewTicker(time.Second)
 
@@ -106,21 +119,31 @@ func playSound(s *discordgo.Session, guildID, channelID string, audiofile string
 		select {
 		case err := <-playing:
 			if err != nil && err != io.EOF {
-				fmt.Println("An error occured", err)
+				fmt.Println("An error occured: ", err)
 				vc.Speaking(false)
 				vc.Disconnect()
+
+				playingMutex.Lock()
+				isPlaying = false
+				playingMutex.Unlock()
+
 				return err
 			}
 
 			vc.Speaking(false)
 			vc.Disconnect()
 			encodeSession.Cleanup()
+
+			playingMutex.Lock()
+			isPlaying = false
+			playingMutex.Unlock()
+
 			return nil
 
 		case <-ticker.C:
 			stats := encodeSession.Stats()
 			playbackPosition := stream.PlaybackPosition()
-			fmt.Printf("Playback: %10s, Transcode Stats: Time: %5s, Size: %5dkB, Bitrate: %6.2fkB, Speed: %5.1fx\n",
+			fmt.Printf("Playback: %6s, Transcode Stats: Time: %6s, Size: %6dkB, Bitrate: %6.2fkB, Speed: %4.1fx\n",
 				playbackPosition, stats.Duration.String(), stats.Size, stats.Bitrate, stats.Speed)
 		}
 	}
@@ -174,21 +197,22 @@ func messageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
 	switch {
 	case split[0] == "!audio":
 		if !isPlaying {
-			isPlaying = true
 			if val, ok := audioMap[split[1]]; ok {
-				fmt.Println("Requested: ", val)
 				joinVoice(s, m, val)
 			} else {
-				fmt.Println("Not found: ", split[1])
+				sendMessage(s, m, fmt.Sprintf("Não encontrei o áudio %s", split[1]))
 			}
-			isPlaying = false
+		} else {
+			sendMessage(s, m, GeraErroAudioJaTocando())
 		}
 
 	case split[0] == "!stop":
+		playingMutex.Lock()
 		if isPlaying {
 			playing <- io.EOF
 			isPlaying = false
 		}
+		playingMutex.Unlock()
 
 	case split[0] == "!clear":
 		clearMessages(s, m)
@@ -260,8 +284,9 @@ func clearMessages(s *discordgo.Session, m *discordgo.MessageCreate) {
 	fmt.Printf("Attempting to delete %d messages\n", len(ids))
 
 	err = s.ChannelMessagesBulkDelete(m.ChannelID, ids)
+
 	if err != nil {
-		fmt.Println("Could not delete messages")
+		fmt.Println("Could not delete messages: ", err)
 	}
 }
 

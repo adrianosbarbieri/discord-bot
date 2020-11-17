@@ -111,6 +111,11 @@ var jogos = []string{
 	"Tibia",
 }
 
+var erroAudioJaTocando = []string{
+	"Uma coisa de cada vez",
+	"Só posso tocar um áudio",
+}
+
 func frasePiorQue() string {
 	r := rand.Intn(len(moios))
 	s := moios[r]
@@ -212,6 +217,15 @@ func GeraFrase() string {
 func GeraJogo() string {
 	r := rand.Intn(len(jogos))
 	s := jogos[r]
+	s = strings.ToUpper(string(s[0])) + s[1:]
+	return s
+}
+
+// GeraErroAudioJaTocando gera uma mensagem de erro
+func GeraErroAudioJaTocando() string {
+	r := rand.Intn(len(erroAudioJaTocando))
+	s := erroAudioJaTocando[r]
+	s = fraseAdicionalFinal(s)
 	s = strings.ToUpper(string(s[0])) + s[1:]
 	return s
 }
