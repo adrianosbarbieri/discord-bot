@@ -9,7 +9,6 @@ import (
 	"os/signal"
 	"sort"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
@@ -29,11 +28,7 @@ var commands = []string{
 
 var audioMap = make(map[string]string)
 
-var playing = make(chan error)
-
-var isPlaying = false
-
-var playingMutex sync.Mutex
+var playing chan error = nil
 
 func readAudioConfig(configPath string) {
 	file, err := os.Open(configPath)
@@ -105,11 +100,6 @@ func playSound(s *discordgo.Session, guildID, channelID string, audiofile string
 		return err
 	}
 
-	playingMutex.Lock()
-	isPlaying = true
-	playing = make(chan error)
-	playingMutex.Unlock()
-
 	fmt.Println("Playing: ", len(playing))
 
 	stream := dca.NewStream(encodeSession, vc, playing)
@@ -122,22 +112,12 @@ func playSound(s *discordgo.Session, guildID, channelID string, audiofile string
 				fmt.Println("An error occured: ", err)
 				vc.Speaking(false)
 				vc.Disconnect()
-
-				playingMutex.Lock()
-				isPlaying = false
-				playingMutex.Unlock()
-
 				return err
 			}
 
 			vc.Speaking(false)
 			vc.Disconnect()
 			encodeSession.Cleanup()
-
-			playingMutex.Lock()
-			isPlaying = false
-			playingMutex.Unlock()
-
 			return nil
 
 		case <-ticker.C:
@@ -196,9 +176,11 @@ func messageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 	switch {
 	case split[0] == "!audio":
-		if !isPlaying {
+		if playing == nil {
 			if val, ok := audioMap[split[1]]; ok {
+				playing = make(chan error)
 				joinVoice(s, m, val)
+				playing = nil
 			} else {
 				sendMessage(s, m, fmt.Sprintf("Não encontrei o áudio %s", split[1]))
 			}
@@ -207,12 +189,9 @@ func messageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
 		}
 
 	case split[0] == "!stop":
-		playingMutex.Lock()
-		if isPlaying {
+		if playing != nil {
 			playing <- io.EOF
-			isPlaying = false
 		}
-		playingMutex.Unlock()
 
 	case split[0] == "!clear":
 		clearMessages(s, m)
