@@ -109,6 +109,9 @@ var jogos = []string{
 	"CoD",
 	"Grand Chase",
 	"Tibia",
+	"Fallguebas",
+	"Minhocas",
+	"League of Legends (Brand jungle)",
 }
 
 var erroAudioJaTocando = []string{
