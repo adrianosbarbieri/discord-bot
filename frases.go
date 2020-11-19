@@ -40,6 +40,8 @@ var clanUva = []string{
 	"o Sebben",
 	"o Pedro",
 	"o Dezzo",
+	"o Arthur",
+	"o Tadeu",
 }
 
 var especial = []string{
@@ -53,12 +55,12 @@ var especial = []string{
 	"dalhe na narguilheira",
 	"o cara é um mamute",
 	"o cara é um mamute, né?",
-	"ADURIANO NEH",
 	"Boneco de posto",
 	"tá maluco, tá doidão",
 	"piá, é isso piá",
 	"tem que ver isso aí",
 	"antes tide do que kunkka",
+	"ADURIANO NEH",
 	"ADURIANO NÉ",
 }
 
@@ -112,6 +114,7 @@ var jogos = []string{
 	"Fallguebas",
 	"Minhocas",
 	"League of Legends (Brand jungle)",
+	"League of Legends (Udyr suporte)",
 }
 
 var erroAudioJaTocando = []string{
