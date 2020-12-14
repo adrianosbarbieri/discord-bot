@@ -2,8 +2,10 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math/rand"
 	"os"
 	"os/signal"
@@ -27,8 +29,27 @@ var commands = []string{
 }
 
 var audioMap = make(map[string]string)
+var fileMap = make(map[string][]byte)
 
 var playing chan error = nil
+
+func loadAllFiles() {
+	for s, path := range audioMap {
+		file, err := os.Open(path)
+		if err != nil {
+			fmt.Println("Could not open audio file: ", err)
+			return
+		}
+
+		b, err := ioutil.ReadAll(file)
+		if err != nil {
+			fmt.Println("Could not read audio file: ", err)
+			return
+		}
+
+		fileMap[s] = b
+	}
+}
 
 func readAudioConfig(configPath string) {
 	file, err := os.Open(configPath)
@@ -81,7 +102,7 @@ func getAudioList() string {
 	return ret
 }
 
-func playSound(s *discordgo.Session, guildID, channelID string, audiofile string) (err error) {
+func playSound(s *discordgo.Session, guildID, channelID string, audioBuf []byte) (err error) {
 	vc, err := s.ChannelVoiceJoin(guildID, channelID, false, true)
 	if err != nil {
 		fmt.Println("Could not join voice channel: ", err)
@@ -94,7 +115,10 @@ func playSound(s *discordgo.Session, guildID, channelID string, audiofile string
 	opts.RawOutput = true
 	opts.Bitrate = 120
 
-	encodeSession, err := dca.EncodeFile(audiofile, opts)
+	fmt.Println("Buffer length: ", len(audioBuf))
+	reader := bytes.NewBuffer(audioBuf)
+
+	encodeSession, err := dca.EncodeMem(reader, opts)
 	if err != nil {
 		fmt.Println("Could not create encode session: ", err)
 		return err
@@ -129,13 +153,13 @@ func playSound(s *discordgo.Session, guildID, channelID string, audiofile string
 	}
 }
 
-func joinVoice(s *discordgo.Session, m *discordgo.MessageCreate, audiofile string) {
+func joinVoice(s *discordgo.Session, m *discordgo.MessageCreate, audioBuf []byte) {
 	vs, err := findVoiceChannel(s, m)
 	if err != nil {
 		return
 	}
 
-	err = playSound(s, m.GuildID, vs, audiofile)
+	err = playSound(s, m.GuildID, vs, audioBuf)
 	if err != nil {
 		fmt.Println("Could not play sound: ", err)
 		return
@@ -177,9 +201,10 @@ func messageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
 	switch {
 	case split[0] == "!audio":
 		if playing == nil {
-			if val, ok := audioMap[split[1]]; ok {
+			if buf, ok := fileMap[split[1]]; ok {
+				fmt.Println("Requested: ", split[1])
 				playing = make(chan error)
-				joinVoice(s, m, val)
+				joinVoice(s, m, buf)
 				playing = nil
 			} else {
 				sendMessage(s, m, fmt.Sprintf("Não encontrei o áudio %s", split[1]))
@@ -277,6 +302,7 @@ func main() {
 	}
 
 	readAudioConfig("audio-config.txt")
+	loadAllFiles()
 
 	rand.Seed(time.Now().UnixNano())
 
