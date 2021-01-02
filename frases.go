@@ -62,6 +62,7 @@ var especial = []string{
 	"antes tide do que kunkka",
 	"ADURIANO NEH",
 	"ADURIANO NÉ",
+	"Tem que viver na poligamia",
 }
 
 var adjetivoDmais = []string{
@@ -116,8 +117,12 @@ var jogos = []string{
 	"Tibia",
 	"Fallguebas",
 	"Minhocas",
+	"Worms",
 	"League of Legends (Brand jungle)",
 	"League of Legends (Udyr suporte)",
+	"World of Warcraft",
+	"Warcraft III: Refunded",
+	"Warcraft III: Reembolsado",
 }
 
 var erroAudioJaTocando = []string{
