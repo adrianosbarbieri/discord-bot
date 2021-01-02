@@ -1,11 +1,9 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"os/signal"
@@ -24,66 +22,18 @@ var commands = []string{
 	"!stop",
 	"!clear",
 	"!frase",
+	"!frasetts",
 	"!jogo",
 	"!lista",
 }
 
-var audioMap = make(map[string]string)
-var fileMap = make(map[string][]byte)
+var audios map[string][]byte
 
-var playing chan error = nil
-
-func loadAllFiles() {
-	for s, path := range audioMap {
-		file, err := os.Open(path)
-		if err != nil {
-			fmt.Println("Could not open audio file: ", err)
-			return
-		}
-
-		b, err := ioutil.ReadAll(file)
-		if err != nil {
-			fmt.Println("Could not read audio file: ", err)
-			return
-		}
-
-		fileMap[s] = b
-	}
-}
-
-func readAudioConfig(configPath string) {
-	file, err := os.Open(configPath)
-	if err != nil {
-		fmt.Println("Could not read file: ", err)
-		return
-	}
-
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	scanner.Split(bufio.ScanLines)
-
-	var lines []string
-
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-	}
-
-	for _, s := range lines {
-		split := strings.Split(s, ";")
-		if len(split) != 2 {
-			continue
-		}
-
-		fmt.Println(split[0], split[1])
-
-		audioMap[split[0]] = split[1]
-	}
-}
+var guildPlaying = make(map[string]chan error)
 
 func getAudioList() string {
 	var lista []string
-	for key := range audioMap {
+	for key := range audios {
 		lista = append(lista, key)
 	}
 
@@ -102,7 +52,7 @@ func getAudioList() string {
 	return ret
 }
 
-func playSound(s *discordgo.Session, guildID, channelID string, audioBuf []byte) (err error) {
+func playSound(s *discordgo.Session, guildID string, channelID string, audioBuf []byte) (err error) {
 	vc, err := s.ChannelVoiceJoin(guildID, channelID, false, true)
 	if err != nil {
 		fmt.Println("Could not join voice channel: ", err)
@@ -115,7 +65,6 @@ func playSound(s *discordgo.Session, guildID, channelID string, audioBuf []byte)
 	opts.RawOutput = true
 	opts.Bitrate = 120
 
-	fmt.Println("Buffer length: ", len(audioBuf))
 	reader := bytes.NewBuffer(audioBuf)
 
 	encodeSession, err := dca.EncodeMem(reader, opts)
@@ -124,46 +73,38 @@ func playSound(s *discordgo.Session, guildID, channelID string, audioBuf []byte)
 		return err
 	}
 
-	fmt.Println("Playing: ", len(playing))
+	guildPlaying[guildID] = make(chan error)
+	_ = dca.NewStream(encodeSession, vc, guildPlaying[guildID])
 
-	stream := dca.NewStream(encodeSession, vc, playing)
-	ticker := time.NewTicker(time.Second)
-
-	for {
-		select {
-		case err := <-playing:
-			if err != nil && err != io.EOF {
-				fmt.Println("An error occured: ", err)
-				vc.Speaking(false)
-				vc.Disconnect()
-				return err
-			}
-
+	for err := range guildPlaying[guildID] {
+		if err != nil && err != io.EOF {
+			fmt.Println("An error occured: ", err)
 			vc.Speaking(false)
 			vc.Disconnect()
-			encodeSession.Cleanup()
-			return nil
-
-		case <-ticker.C:
-			stats := encodeSession.Stats()
-			playbackPosition := stream.PlaybackPosition()
-			fmt.Printf("Playback: %6s, Transcode Stats: Time: %6s, Size: %6dkB, Bitrate: %6.2fkB, Speed: %4.1fx\n",
-				playbackPosition, stats.Duration.String(), stats.Size, stats.Bitrate, stats.Speed)
+			return err
 		}
+
+		vc.Speaking(false)
+		vc.Disconnect()
+		encodeSession.Cleanup()
+		return nil
 	}
+
+	return nil
 }
 
-func joinVoice(s *discordgo.Session, m *discordgo.MessageCreate, audioBuf []byte) {
-	vs, err := findVoiceChannel(s, m)
+func joinVoice(s *discordgo.Session, m *discordgo.MessageCreate, audioBuf []byte) error {
+	channelID, err := findVoiceChannel(s, m)
 	if err != nil {
-		return
+		return err
 	}
 
-	err = playSound(s, m.GuildID, vs, audioBuf)
+	err = playSound(s, m.GuildID, channelID, audioBuf)
 	if err != nil {
 		fmt.Println("Could not play sound: ", err)
-		return
+		return err
 	}
+	return nil
 }
 
 func findVoiceChannel(s *discordgo.Session, m *discordgo.MessageCreate) (string, error) {
@@ -198,24 +139,22 @@ func messageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 
+	var err error = nil
+
 	switch {
 	case split[0] == "!audio":
-		if playing == nil {
-			if buf, ok := fileMap[split[1]]; ok {
-				fmt.Println("Requested: ", split[1])
-				playing = make(chan error)
-				joinVoice(s, m, buf)
-				playing = nil
-			} else {
-				sendMessage(s, m, fmt.Sprintf("Não encontrei o áudio %s", split[1]))
-			}
+		if _, ok := s.VoiceConnections[m.GuildID]; ok {
+			err = sendMessage(s, m, GeraErroAudioJaTocando())
+		} else if buf, ok := audios[split[1]]; ok {
+			err = joinVoice(s, m, buf)
 		} else {
-			sendMessage(s, m, GeraErroAudioJaTocando())
+			err = sendMessage(s, m, fmt.Sprintf("Não encontrei o áudio %s", split[1]))
 		}
 
 	case split[0] == "!stop":
-		if playing != nil {
-			playing <- io.EOF
+		if _, ok := guildPlaying[m.GuildID]; ok {
+			guildPlaying[m.GuildID] <- io.EOF
+			delete(guildPlaying, m.GuildID)
 		}
 
 	case split[0] == "!clear":
@@ -223,54 +162,57 @@ func messageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 	case split[0] == "!frase":
 		msg := GeraFrase()
-		sendMessage(s, m, msg)
+		err = sendMessage(s, m, msg)
 
 	case split[0] == "!frasetts":
 		msg := GeraFrase()
-		sendMessageTTS(s, m, msg)
+		err = sendMessageTTS(s, m, msg)
 
 	case split[0] == "!jogo":
 		jogo := GeraJogo()
-		changeGame(s, m, jogo)
+		err = changeGame(s, m, jogo)
 
 	case split[0] == "!lista":
 		lista := getAudioList()
-		sendMessage(s, m, lista)
+		err = sendMessage(s, m, lista)
 	}
 
+	if err != nil {
+		fmt.Println(err)
+	}
 }
 
-func changeGame(s *discordgo.Session, m *discordgo.MessageCreate, game string) {
+func changeGame(s *discordgo.Session, m *discordgo.MessageCreate, game string) error {
 	err := s.UpdateStatus(0, game)
 	if err != nil {
-		fmt.Println("Could not update status: ", err)
+		return err
 	}
+	return nil
 }
 
-func sendMessage(s *discordgo.Session, m *discordgo.MessageCreate, msg string) {
+func sendMessage(s *discordgo.Session, m *discordgo.MessageCreate, msg string) error {
 	_, err := s.ChannelMessageSend(m.ChannelID, msg)
 	if err != nil {
-		fmt.Println("Could not send message: ", err)
+		return err
 	}
+	return nil
 }
 
-func sendMessageTTS(s *discordgo.Session, m *discordgo.MessageCreate, msg string) {
+func sendMessageTTS(s *discordgo.Session, m *discordgo.MessageCreate, msg string) error {
 	_, err := s.ChannelMessageSendTTS(m.ChannelID, msg)
 	if err != nil {
-		fmt.Println("Could not send message tts: ", err)
+		return err
 	}
+	return nil
 }
 
-func clearMessages(s *discordgo.Session, m *discordgo.MessageCreate) {
+func clearMessages(s *discordgo.Session, m *discordgo.MessageCreate) error {
 	ids := make([]string, 0)
 
 	messages, err := s.ChannelMessages(m.ChannelID, 100, "", "", "")
 	if err != nil {
-		fmt.Println("Could not get channel messages: ", err)
-		return
+		return err
 	}
-
-	fmt.Printf("Found %d messages\n", len(messages))
 
 	for _, message := range messages {
 		if message.Author.ID == s.State.User.ID {
@@ -285,13 +227,12 @@ func clearMessages(s *discordgo.Session, m *discordgo.MessageCreate) {
 		}
 	}
 
-	fmt.Printf("Attempting to delete %d messages\n", len(ids))
-
 	err = s.ChannelMessagesBulkDelete(m.ChannelID, ids)
 
 	if err != nil {
-		fmt.Println("Could not delete messages: ", err)
+		return err
 	}
+	return nil
 }
 
 func main() {
@@ -301,8 +242,13 @@ func main() {
 		return
 	}
 
-	readAudioConfig("audio-config.txt")
-	loadAllFiles()
+	pathMap, err := readAudioConfig("config.txt")
+	if err != nil {
+		fmt.Println("Could not read config ", err)
+		return
+	}
+
+	audios = loadAllFiles(pathMap)
 
 	rand.Seed(time.Now().UnixNano())
 
@@ -312,7 +258,6 @@ func main() {
 	}
 
 	discord.AddHandler(messageHandler)
-	discord.State.MaxMessageCount = 100
 
 	fmt.Println("Connecting...")
 
