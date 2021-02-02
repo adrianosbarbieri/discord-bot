@@ -8,10 +8,16 @@ import (
 	"strings"
 )
 
-func loadAllFiles(audioMap map[string]string) map[string][]byte {
-	fileMap := make(map[string][]byte)
-	for s, path := range audioMap {
-		file, err := os.Open(path)
+type Audio struct {
+	name string
+	id   int
+	path string
+	buf  []byte
+}
+
+func LoadAllFiles(audios []Audio) {
+	for i, _ := range audios {
+		file, err := os.Open(audios[i].path)
 		if err != nil {
 			fmt.Println("Could not open audio file: ", err)
 			continue
@@ -23,14 +29,13 @@ func loadAllFiles(audioMap map[string]string) map[string][]byte {
 			continue
 		}
 
-		fileMap[s] = b
+		audios[i].buf = b
 	}
-
-	return fileMap
 }
 
-func readAudioConfig(configPath string) (map[string]string, error) {
-	config := make(map[string]string)
+func ReadAudioConfig(configPath string) ([]Audio, error) {
+	config := make([]Audio, 0)
+
 	file, err := os.Open(configPath)
 	if err != nil {
 		return nil, err
@@ -47,15 +52,21 @@ func readAudioConfig(configPath string) (map[string]string, error) {
 		lines = append(lines, scanner.Text())
 	}
 
-	for _, s := range lines {
+	for i, s := range lines {
 		split := strings.Split(s, ";")
 		if len(split) != 2 {
 			continue
 		}
 
-		fmt.Println(split[0], split[1])
+		audio := Audio{
+			name: split[0],
+			id:   i + 1,
+			path: split[1],
+			buf:  nil,
+		}
 
-		config[split[0]] = split[1]
+		config = append(config, audio)
 	}
+
 	return config, nil
 }
