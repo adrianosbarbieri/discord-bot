@@ -34,7 +34,7 @@ var commands = []string{
 type GuildVoiceInstance struct {
 	err        chan error
 	connection *discordgo.VoiceConnection
-	lastActive time.Time // time of the last audio played
+	lastActive time.Time
 	isPlaying  bool
 	mutex      sync.Mutex
 }
@@ -70,7 +70,7 @@ func playSound(playing *GuildVoiceInstance, audioBuf []byte) error {
 
 	encodeSession, err := dca.EncodeMem(reader, opts)
 	if err != nil {
-		fmt.Println("Could not create encode session: ", err)
+		fmt.Println("failed to create encode session")
 		return err
 	}
 
@@ -104,7 +104,6 @@ func joinVoice(s *discordgo.Session, m *discordgo.MessageCreate, audioBuf []byte
 		if !playing.isPlaying {
 			if playing.connection == nil {
 				playing.connection, err = s.ChannelVoiceJoin(m.GuildID, channelID, false, true)
-
 				if err != nil {
 					playing.mutex.Unlock()
 					return err
@@ -112,7 +111,6 @@ func joinVoice(s *discordgo.Session, m *discordgo.MessageCreate, audioBuf []byte
 			} else if playing.connection.ChannelID != channelID {
 				playing.connection.Close()
 				playing.connection, err = s.ChannelVoiceJoin(m.GuildID, channelID, false, true)
-
 				if err != nil {
 					playing.mutex.Unlock()
 					return err
@@ -135,7 +133,7 @@ func joinVoice(s *discordgo.Session, m *discordgo.MessageCreate, audioBuf []byte
 			playing.mutex.Unlock()
 
 			if err != nil {
-				fmt.Println("Could not play sound: ", err)
+				fmt.Println("failed to play sound", err)
 				return err
 			}
 
@@ -159,13 +157,13 @@ func joinVoice(s *discordgo.Session, m *discordgo.MessageCreate, audioBuf []byte
 func findVoiceChannel(s *discordgo.Session, m *discordgo.MessageCreate) (string, error) {
 	c, err := s.State.Channel(m.ChannelID)
 	if err != nil {
-		fmt.Println("Could not find channel: ", err)
+		fmt.Println("failed to find channel")
 		return "", err
 	}
 
 	g, err := s.State.Guild(c.GuildID)
 	if err != nil {
-		fmt.Println("Could not find guild: ", err)
+		fmt.Println("failed to find guild")
 		return "", err
 	}
 
@@ -175,7 +173,7 @@ func findVoiceChannel(s *discordgo.Session, m *discordgo.MessageCreate) (string,
 		}
 	}
 
-	return "", fmt.Errorf("Could not find voice channel")
+	return "", errors.New("failed to find voice channel")
 }
 
 func messageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
@@ -190,55 +188,66 @@ func messageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 	var err error = nil
 
+	cmd := split[0]
+	arg := split[1]
+
 	switch {
-	case split[0] == "!audio":
-		if buf, ok := audioName[split[1]]; ok {
-			err = joinVoice(s, m, buf)
-		} else {
-			err = sendMessage(s, m, fmt.Sprintf("Não encontrei o áudio %s", split[1]))
-		}
+	case cmd == "!audio":
+		err = cmdAudio(s, m, arg)
 
-	case split[0] == "!audioid":
-		if buf, ok := audioID[split[1]]; ok {
-			err = joinVoice(s, m, buf)
-		} else {
-			err = sendMessage(s, m, fmt.Sprintf("Não encontrei o áudio %s", split[1]))
-		}
+	case cmd == "!audioid":
+		err = cmdAudioID(s, m, arg)
 
-	case split[0] == "!stop":
-		if playing, ok := guildVoiceConnection[m.GuildID]; ok {
-			playing.mutex.Lock()
-			b := playing.isPlaying
-			playing.mutex.Unlock()
+	case cmd == "!stop":
+		cmdStop(s, m)
 
-			if b {
-				playing.err <- io.EOF
-			}
-		}
-
-	case split[0] == "!clear":
+	case cmd == "!clear":
 		clearMessages(s, m)
 
-	case split[0] == "!frase":
-		msg := GeraFrase()
-		err = sendMessage(s, m, msg)
+	case cmd == "!frase":
+		err = sendMessage(s, m, GeraFrase())
 
-	case split[0] == "!frasetts":
-		msg := GeraFrase()
-		err = sendMessageTTS(s, m, msg)
+	case cmd == "!frasetts":
+		err = sendMessageTTS(s, m, GeraFrase())
 
-	case split[0] == "!jogo":
-		jogo := GeraJogo()
-		err = changeGame(s, m, jogo)
+	case cmd == "!jogo":
+		err = changeGame(s, m, GeraJogo())
 
-	case split[0] == "!lista":
-		lista := getAudioList()
-		err = sendMessage(s, m, lista)
+	case cmd == "!lista":
+		err = sendMessage(s, m, getAudioList())
 	}
 
 	if err != nil {
 		fmt.Println(err)
 	}
+}
+
+func cmdStop(s *discordgo.Session, m *discordgo.MessageCreate) {
+	if playing, ok := guildVoiceConnection[m.GuildID]; ok {
+		playing.mutex.Lock()
+		b := playing.isPlaying
+		playing.mutex.Unlock()
+
+		if b {
+			playing.err <- io.EOF
+		}
+	}
+}
+
+func cmdAudioID(s *discordgo.Session, m *discordgo.MessageCreate, msg string) error {
+	if buf, ok := audioID[msg]; ok {
+		return joinVoice(s, m, buf)
+	}
+
+	return sendMessage(s, m, fmt.Sprintf("Não encontrei o áudio %s", msg))
+}
+
+func cmdAudio(s *discordgo.Session, m *discordgo.MessageCreate, msg string) error {
+	if buf, ok := audioName[msg]; ok {
+		return joinVoice(s, m, buf)
+	}
+
+	return sendMessage(s, m, fmt.Sprintf("Não encontrei o áudio %s", msg))
 }
 
 func changeGame(s *discordgo.Session, m *discordgo.MessageCreate, game string) error {
@@ -310,16 +319,15 @@ func disconnectWhenIdleTick() {
 func main() {
 	token := os.Getenv("LUQUITO_BOT")
 	if len(token) == 0 {
-		fmt.Println("No token found")
-		return
+		panic("no token found")
 	}
 
 	var err error = nil
 
 	audioArr, err = ReadAudioConfig("config.txt")
 	if err != nil {
-		fmt.Println("Could not read config ", err)
-		return
+		fmt.Println("failed to read config")
+		panic(err)
 	}
 
 	LoadAllFiles(audioArr)
@@ -341,15 +349,17 @@ func main() {
 
 	discord, err := discordgo.New("Bot " + token)
 	if err != nil {
+		fmt.Println("failed to create session")
 		panic(err)
 	}
 
 	discord.AddHandler(messageHandler)
 
-	fmt.Println("Connecting...")
+	fmt.Println("connecting...")
 
 	err = discord.Open()
 	if err != nil {
+		fmt.Println("failed to open connection")
 		panic(err)
 	}
 
@@ -365,12 +375,12 @@ func main() {
 
 	go disconnectWhenIdleTick()
 
-	fmt.Println("Ready!")
+	fmt.Println("ready!")
 
 	sc := make(chan os.Signal, 1)
 
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill)
 	<-sc
-	fmt.Println("Closing...")
+	fmt.Println("closing...")
 	discord.Close()
 }
