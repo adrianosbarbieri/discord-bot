@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"math/rand"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -31,7 +33,7 @@ var commands = []string{
 	"!lista",
 }
 
-type GuildVoiceInstance struct {
+type guildVoiceInstance struct {
 	err        chan error
 	connection *discordgo.VoiceConnection
 	lastActive time.Time
@@ -43,7 +45,7 @@ var audioArr []Audio
 var audioName map[string][]byte
 var audioID map[string][]byte
 
-var guildVoiceConnection = make(map[string]*GuildVoiceInstance)
+var guildInstances = make(map[string]*guildVoiceInstance)
 
 func getAudioList() string {
 	ret := "Áudios disponíveis (em ordem alfabética): \n"
@@ -61,7 +63,7 @@ func getAudioList() string {
 	return ret
 }
 
-func playSound(playing *GuildVoiceInstance, audioBuf []byte) error {
+func playSound(playing *guildVoiceInstance, audioBuf []byte) error {
 	opts := dca.StdEncodeOptions
 	opts.RawOutput = true
 	opts.Bitrate = 128
@@ -98,7 +100,7 @@ func joinVoice(s *discordgo.Session, m *discordgo.MessageCreate, audioBuf []byte
 		return err
 	}
 
-	if playing, ok := guildVoiceConnection[m.GuildID]; ok {
+	if playing, ok := guildInstances[m.GuildID]; ok {
 		playing.mutex.Lock()
 
 		if !playing.isPlaying {
@@ -182,14 +184,22 @@ func messageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
 	}
 
 	split := strings.SplitN(m.Content, " ", 2)
-	if len(split) == 0 {
+	splitLen := len(split)
+
+	if splitLen == 0 {
 		return
 	}
 
 	var err error = nil
+	cmd := ""
+	arg := ""
 
-	cmd := split[0]
-	arg := split[1]
+	if splitLen == 1 {
+		cmd = split[0]
+	} else if splitLen == 2 {
+		cmd = split[0]
+		arg = split[1]
+	}
 
 	switch {
 	case cmd == "!audio":
@@ -202,7 +212,7 @@ func messageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
 		cmdStop(s, m)
 
 	case cmd == "!clear":
-		clearMessages(s, m)
+		err = clearMessages(s, m)
 
 	case cmd == "!frase":
 		err = sendMessage(s, m, GeraFrase())
@@ -223,7 +233,7 @@ func messageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
 }
 
 func cmdStop(s *discordgo.Session, m *discordgo.MessageCreate) {
-	if playing, ok := guildVoiceConnection[m.GuildID]; ok {
+	if playing, ok := guildInstances[m.GuildID]; ok {
 		playing.mutex.Lock()
 		b := playing.isPlaying
 		playing.mutex.Unlock()
@@ -251,7 +261,7 @@ func cmdAudio(s *discordgo.Session, m *discordgo.MessageCreate, msg string) erro
 }
 
 func changeGame(s *discordgo.Session, m *discordgo.MessageCreate, game string) error {
-	return s.UpdateStatus(0, game)
+	return s.UpdateGameStatus(0, game)
 }
 
 func sendMessage(s *discordgo.Session, m *discordgo.MessageCreate, msg string) error {
@@ -289,7 +299,7 @@ func clearMessages(s *discordgo.Session, m *discordgo.MessageCreate) error {
 }
 
 func disconnectWhenIdle() {
-	for _, g := range guildVoiceConnection {
+	for _, g := range guildInstances {
 		g.mutex.Lock()
 
 		if g.connection != nil && !g.isPlaying {
@@ -306,28 +316,30 @@ func disconnectWhenIdle() {
 }
 
 func disconnectWhenIdleTick() {
-	ticker := time.NewTicker(time.Second * 10)
+	ticker := time.NewTicker(time.Second * 30)
 
 	for {
-		select {
-		case _ = <-ticker.C:
-			disconnectWhenIdle()
-		}
+		_ = <-ticker.C
+		disconnectWhenIdle()
 	}
 }
 
 func main() {
+	ex, err := os.Executable()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	exPath := filepath.Dir(ex)
+
 	token := os.Getenv("LUQUITO_BOT")
 	if len(token) == 0 {
 		panic("no token found")
 	}
 
-	var err error = nil
-
-	audioArr, err = ReadAudioConfig("config.txt")
+	audioArr, err = ReadAudioConfig(filepath.Join(exPath, "config.txt"))
 	if err != nil {
-		fmt.Println("failed to read config")
-		panic(err)
+		log.Fatal("failed to read config\n", err)
 	}
 
 	LoadAllFiles(audioArr)
@@ -365,7 +377,7 @@ func main() {
 
 	guilds := discord.State.Guilds
 	for _, g := range guilds {
-		guildVoiceConnection[g.ID] = &GuildVoiceInstance{
+		guildInstances[g.ID] = &guildVoiceInstance{
 			isPlaying:  false,
 			err:        nil,
 			connection: nil,
