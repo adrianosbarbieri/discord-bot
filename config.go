@@ -3,7 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"strings"
 )
@@ -23,7 +23,7 @@ func LoadAllFiles(audios []Audio) {
 			continue
 		}
 
-		b, err := ioutil.ReadAll(file)
+		b, err := io.ReadAll(file)
 		if err != nil {
 			fmt.Println("Could not read audio file: ", err)
 			continue
