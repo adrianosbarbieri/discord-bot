@@ -31,6 +31,8 @@ var commands = []string{
 	"!frasetts",
 	"!jogo",
 	"!lista",
+	"!a",
+	"!aid",
 }
 
 type guildVoiceInstance struct {
@@ -202,8 +204,14 @@ func messageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
 	}
 
 	switch {
+	case cmd == "!a":
+		err = cmdAudio(s, m, arg)
+
 	case cmd == "!audio":
 		err = cmdAudio(s, m, arg)
+
+	case cmd == "!aid":
+		err = cmdAudioID(s, m, arg)
 
 	case cmd == "!audioid":
 		err = cmdAudioID(s, m, arg)
