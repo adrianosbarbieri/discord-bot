@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"strings"
 )
 
@@ -15,9 +16,12 @@ type Audio struct {
 	buf  []byte
 }
 
-func LoadAllFiles(audios []Audio) {
+func LoadAllFiles(basePath string, audios []Audio) {
 	for i, _ := range audios {
-		file, err := os.Open(audios[i].path)
+		path := path.Join(basePath, audios[i].path)
+
+		file, err := os.Open(path)
+
 		if err != nil {
 			fmt.Println("Could not open audio file: ", err)
 			continue

@@ -350,7 +350,7 @@ func main() {
 		log.Fatal("failed to read config\n", err)
 	}
 
-	LoadAllFiles(audioArr)
+	LoadAllFiles(exPath, audioArr)
 
 	sort.Slice(audioArr, func(i, j int) bool {
 		return audioArr[i].name < audioArr[j].name
