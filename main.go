@@ -146,7 +146,7 @@ func joinVoice(s *discordgo.Session, m *discordgo.MessageCreate, audioBuf []byte
 
 		playing.mutex.Unlock()
 
-		err = sendMessage(s, m, GeraErroAudioJaTocando())
+		err = sendMessage(s, m, geraErroAudioJaTocando())
 
 		if err != nil {
 			return err
@@ -223,13 +223,13 @@ func messageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
 		err = clearMessages(s, m)
 
 	case cmd == "!frase":
-		err = sendMessage(s, m, GeraFrase())
+		err = sendMessage(s, m, geraFrase())
 
 	case cmd == "!frasetts":
-		err = sendMessageTTS(s, m, GeraFrase())
+		err = sendMessageTTS(s, m, geraFrase())
 
 	case cmd == "!jogo":
-		err = changeGame(s, m, GeraJogo())
+		err = changeGame(s, m, geraJogo())
 
 	case cmd == "!lista":
 		err = sendMessage(s, m, getAudioList())
@@ -345,12 +345,12 @@ func main() {
 		panic("no token found")
 	}
 
-	audioArr, err = ReadAudioConfig(filepath.Join(exPath, "config.txt"))
+	audioArr, err = readAudioConfig(filepath.Join(exPath, "config.txt"))
 	if err != nil {
 		log.Fatal("failed to read config\n", err)
 	}
 
-	LoadAllFiles(exPath, audioArr)
+	loadAllFiles(exPath, audioArr)
 
 	sort.Slice(audioArr, func(i, j int) bool {
 		return audioArr[i].name < audioArr[j].name

@@ -43,7 +43,7 @@ func loadAllFiles(basePath string, audios []Audio) {
 	fmt.Printf("Loaded in %d ms\n", end.Sub(ini).Milliseconds())
 }
 
-func ReadAudioConfig(configPath string) ([]Audio, error) {
+func readAudioConfig(configPath string) ([]Audio, error) {
 	config := make([]Audio, 0)
 
 	file, err := os.Open(configPath)
