@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"time"
 )
 
 type Audio struct {
@@ -16,10 +17,11 @@ type Audio struct {
 	buf  []byte
 }
 
-func LoadAllFiles(basePath string, audios []Audio) {
+func loadAllFiles(basePath string, audios []Audio) {
+	ini := time.Now().UTC()
+
 	for i, _ := range audios {
 		path := path.Join(basePath, audios[i].path)
-
 		file, err := os.Open(path)
 
 		if err != nil {
@@ -35,6 +37,10 @@ func LoadAllFiles(basePath string, audios []Audio) {
 
 		audios[i].buf = b
 	}
+
+	end := time.Now().UTC()
+
+	fmt.Printf("Loaded in %d ms\n", end.Sub(ini).Milliseconds())
 }
 
 func ReadAudioConfig(configPath string) ([]Audio, error) {
