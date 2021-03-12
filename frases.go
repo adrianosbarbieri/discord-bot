@@ -15,6 +15,7 @@ var verboSemObj = []string{
 var verboClanUva = []string{
 	"matar",
 	"mutar",
+	"mamar",
 }
 
 var moios = []string{
@@ -42,6 +43,10 @@ var clanUva = []string{
 	"o Dezzo",
 	"o Arthur",
 	"o Tadeu",
+	"o Wandley",
+	"o Frost",
+	"o Josias",
+	"o Voraz",
 }
 
 var especial = []string{
@@ -63,6 +68,8 @@ var especial = []string{
 	"ADURIANO NEH",
 	"ADURIANO NÉ",
 	"Tem que viver na poligamia",
+	"deu aulaxx",
+	"tchama tchama",
 }
 
 var adjetivoDmais = []string{
@@ -74,7 +81,7 @@ var adjetivoDmais = []string{
 	"pipinhas léguas",
 }
 
-var adjetivoDo = []string{
+var palavraDo = []string{
 	"baby",
 	"xesk",
 	"bresk",
@@ -99,8 +106,11 @@ var adicionalInicio = []string{
 }
 
 var jogar = []string{
-	"feedar",
-	"dar uma rabiada",
+	"feedar no",
+	"dar uma feedada no",
+	"jogar",
+	"dar uma rabiada no",
+	"dar aulaxx no",
 }
 
 var jogos = []string{
@@ -110,6 +120,8 @@ var jogos = []string{
 	"Dota 2 (Magnus mid)",
 	"Dota 2 (Invoker mid)",
 	"Dota 2 (Sniper mid)",
+	"Dota 2 (Meme Hammer mid)",
+	"Dota 2 (OD mid)",
 	"Warcraft III",
 	"Poketibia",
 	"CSGO",
@@ -123,6 +135,8 @@ var jogos = []string{
 	"World of Warcraft",
 	"Warcraft III: Refunded",
 	"Warcraft III: Reembolsado",
+	"Valorant",
+	"Badarant",
 }
 
 var erroAudioJaTocando = []string{
@@ -156,6 +170,14 @@ func fraseEuVou() string {
 	return "Eu vou " + s1 + " " + s2
 }
 
+func fraseEuVouJogar() string {
+	r1 := rand.Intn(len(jogar))
+	r2 := rand.Intn(len(jogos))
+	s1 := jogar[r1]
+	s2 := jogos[r2]
+	return "Eu vou " + s1 + " " + s2
+}
+
 func fraseDmais() string {
 	r := rand.Intn(len(adjetivoDmais))
 	s := adjetivoDmais[r]
@@ -170,15 +192,15 @@ func fraseEspecial() string {
 }
 
 func fraseDo() string {
-	r := rand.Intn(len(adjetivoDo))
-	s := adjetivoDo[r]
+	r := rand.Intn(len(palavraDo))
+	s := palavraDo[r]
 	s = s + " do " + s
 	return fraseAdicionalAmbas(s)
 }
 
 func fraseAdicionalFinal(s string) string {
-	r := rand.Intn(100)
-	if r <= 50 {
+	r := rand.Intn(1)
+	if r == 1 {
 		return s
 	}
 
@@ -187,8 +209,8 @@ func fraseAdicionalFinal(s string) string {
 }
 
 func fraseAdicionalInicial(s string) string {
-	r := rand.Intn(100)
-	if r <= 50 {
+	r := rand.Intn(1)
+	if r == 1 {
 		return s
 	}
 
@@ -201,42 +223,44 @@ func fraseAdicionalAmbas(s string) string {
 }
 
 func frase() string {
-	r := rand.Intn(140)
-	if r <= 20 {
+	r := rand.Intn(7)
+
+	switch r {
+	case 0:
 		return fraseAi1()
-	} else if r >= 21 && r <= 40 {
+	case 1:
 		return fraseAi2()
-	} else if r >= 41 && r <= 60 {
+	case 2:
 		return fraseEuVou()
-	} else if r >= 61 && r <= 80 {
+	case 3:
 		return fraseDmais()
-	} else if r >= 81 && r <= 100 {
+	case 4:
 		return fraseDo()
-	} else if r >= 101 && r <= 120 {
+	case 5:
 		return frasePiorQue()
-	} else if r >= 121 && r <= 140 {
+	case 6:
 		return fraseEspecial()
+	case 7:
+		return fraseEuVouJogar()
+	default:
+		return ""
 	}
-	return ""
 }
 
-// GeraFrase gera uma frase aleatória
-func GeraFrase() string {
+func geraFrase() string {
 	s := frase()
 	s = strings.ToUpper(string(s[0])) + s[1:]
 	return s
 }
 
-// GeraJogo gera um jogo aleatório
-func GeraJogo() string {
+func geraJogo() string {
 	r := rand.Intn(len(jogos))
 	s := jogos[r]
 	s = strings.ToUpper(string(s[0])) + s[1:]
 	return s
 }
 
-// GeraErroAudioJaTocando gera uma mensagem de erro
-func GeraErroAudioJaTocando() string {
+func geraErroAudioJaTocando() string {
 	r := rand.Intn(len(erroAudioJaTocando))
 	s := erroAudioJaTocando[r]
 	s = fraseAdicionalFinal(s)
