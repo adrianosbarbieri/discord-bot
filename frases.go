@@ -99,6 +99,7 @@ var adicionalFinal = []string{
 	"papebas",
 	"meu papebas",
 	"tá ligado",
+	"meu patrício",
 }
 
 var adicionalInicio = []string{
@@ -199,7 +200,7 @@ func fraseDo() string {
 }
 
 func fraseAdicionalFinal(s string) string {
-	r := rand.Intn(1)
+	r := rand.Intn(2)
 	if r == 1 {
 		return s
 	}
@@ -209,7 +210,7 @@ func fraseAdicionalFinal(s string) string {
 }
 
 func fraseAdicionalInicial(s string) string {
-	r := rand.Intn(1)
+	r := rand.Intn(2)
 	if r == 1 {
 		return s
 	}
@@ -223,7 +224,7 @@ func fraseAdicionalAmbas(s string) string {
 }
 
 func frase() string {
-	r := rand.Intn(7)
+	r := rand.Intn(8)
 
 	switch r {
 	case 0:
