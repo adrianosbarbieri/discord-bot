@@ -20,7 +20,7 @@ type Audio struct {
 func loadAllFiles(basePath string, audios []Audio) {
 	ini := time.Now().UTC()
 
-	for i, _ := range audios {
+	for i := range audios {
 		path := path.Join(basePath, audios[i].path)
 		file, err := os.Open(path)
 

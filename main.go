@@ -327,7 +327,7 @@ func disconnectWhenIdleTick() {
 	ticker := time.NewTicker(time.Second * 30)
 
 	for {
-		_ = <-ticker.C
+		<-ticker.C
 		disconnectWhenIdle()
 	}
 }
@@ -399,7 +399,7 @@ func main() {
 
 	sc := make(chan os.Signal, 1)
 
-	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill)
+	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
 	<-sc
 	fmt.Println("closing...")
 	discord.Close()
