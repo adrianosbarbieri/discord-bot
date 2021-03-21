@@ -2,11 +2,13 @@ package main
 
 import (
 	"bytes"
+	cryptoRand "crypto/rand"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"log"
-	"math/rand"
+	mathRand "math/rand"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -45,7 +47,7 @@ type guildVoiceInstance struct {
 
 var audioArr []Audio
 var audioName map[string][]byte
-var audioID map[string][]byte
+var audioID map[int][]byte
 
 var guildInstances = make(map[string]*guildVoiceInstance)
 
@@ -74,7 +76,6 @@ func playSound(playing *guildVoiceInstance, audioBuf []byte) error {
 
 	encodeSession, err := dca.EncodeMem(reader, opts)
 	if err != nil {
-		fmt.Println("failed to create encode session")
 		return err
 	}
 
@@ -84,7 +85,6 @@ func playSound(playing *guildVoiceInstance, audioBuf []byte) error {
 	err = <-playing.err
 
 	if err != nil && err != io.EOF {
-		fmt.Println(err)
 		return err
 	}
 
@@ -137,7 +137,6 @@ func joinVoice(s *discordgo.Session, m *discordgo.MessageCreate, audioBuf []byte
 			playing.mutex.Unlock()
 
 			if err != nil {
-				fmt.Println("failed to play sound", err)
 				return err
 			}
 
@@ -161,13 +160,11 @@ func joinVoice(s *discordgo.Session, m *discordgo.MessageCreate, audioBuf []byte
 func findVoiceChannel(s *discordgo.Session, m *discordgo.MessageCreate) (string, error) {
 	c, err := s.State.Channel(m.ChannelID)
 	if err != nil {
-		fmt.Println("failed to find channel")
 		return "", err
 	}
 
 	g, err := s.State.Guild(c.GuildID)
 	if err != nil {
-		fmt.Println("failed to find guild")
 		return "", err
 	}
 
@@ -253,7 +250,12 @@ func cmdStop(s *discordgo.Session, m *discordgo.MessageCreate) {
 }
 
 func cmdAudioID(s *discordgo.Session, m *discordgo.MessageCreate, msg string) error {
-	if buf, ok := audioID[msg]; ok {
+	i, err := strconv.Atoi(msg)
+	if err != nil {
+		return nil
+	}
+
+	if buf, ok := audioID[i]; ok {
 		return joinVoice(s, m, buf)
 	}
 
@@ -347,7 +349,7 @@ func main() {
 
 	audioArr, err = readAudioConfig(filepath.Join(exPath, "config.txt"))
 	if err != nil {
-		log.Fatal("failed to read config\n", err)
+		panic(err)
 	}
 
 	loadAllFiles(exPath, audioArr)
@@ -357,19 +359,24 @@ func main() {
 	})
 
 	audioName = make(map[string][]byte)
-	audioID = make(map[string][]byte)
+	audioID = make(map[int][]byte)
 
 	for _, a := range audioArr {
 		audioName[a.name] = a.buf
-		id := strconv.Itoa(a.id)
+		id := a.id
 		audioID[id] = a.buf
 	}
 
-	rand.Seed(time.Now().UnixNano())
+	var b [8]byte
+	_, err = cryptoRand.Read(b[:])
+	if err != nil {
+		panic(err)
+	}
+
+	mathRand.Seed(int64(binary.LittleEndian.Uint64(b[:])))
 
 	discord, err := discordgo.New("Bot " + token)
 	if err != nil {
-		fmt.Println("failed to create session")
 		panic(err)
 	}
 
@@ -379,7 +386,6 @@ func main() {
 
 	err = discord.Open()
 	if err != nil {
-		fmt.Println("failed to open connection")
 		panic(err)
 	}
 
