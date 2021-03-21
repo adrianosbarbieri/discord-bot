@@ -70,6 +70,7 @@ var especial = []string{
 	"Tem que viver na poligamia",
 	"deu aulaxx",
 	"tchama tchama",
+	"Um oferecimento Nielsbier, aqui o cervejeiro é você!",
 }
 
 var adjetivoDmais = []string{
