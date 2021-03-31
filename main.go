@@ -33,6 +33,7 @@ var commands = []string{
 	"!frasetts",
 	"!jogo",
 	"!lista",
+	"!lista2",
 	"!a",
 	"!aid",
 }
@@ -64,6 +65,29 @@ func getAudioList() string {
 
 	return strBuilder.String()
 }
+
+func getAudioList2() string {
+	l := len(audioArr)
+	audioArr2 := make([]*Audio, l)
+
+	for i := range audioArr {
+		audioArr2[i] = &audioArr[i]
+	}
+
+	sort.Slice(audioArr2, func(i, j int) bool {
+		return audioArr2[i].id < audioArr2[j].id
+	})
+
+	strBuilder := strings.Builder{}
+	strBuilder.WriteString("Áudios disponíveis (em ordem numérica): \n```\n")
+
+	for _, a := range audioArr2 {
+		strBuilder.WriteString(strconv.Itoa(a.id) + ": " + a.name + "\n")
+	}
+
+	strBuilder.WriteString("\n```")
+
+	return strBuilder.String()
 }
 
 func playSound(playing *guildVoiceInstance, audioBuf []byte) error {
@@ -229,6 +253,9 @@ func messageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 	case cmd == "!lista":
 		err = sendMessage(s, m, getAudioList())
+
+	case cmd == "!lista2":
+		err = sendMessage(s, m, getAudioList2())
 	}
 
 	if err != nil {
