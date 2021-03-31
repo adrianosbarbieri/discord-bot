@@ -52,19 +52,18 @@ var audioID map[int][]byte
 var guildInstances = make(map[string]*guildVoiceInstance)
 
 func getAudioList() string {
-	ret := "Áudios disponíveis (em ordem alfabética): \n"
-	ret += "```\n"
+	strBuilder := strings.Builder{}
+
+	strBuilder.WriteString("Áudios disponíveis (em ordem alfabética): \n```\n")
 
 	for _, a := range audioArr {
-		ret += strconv.Itoa(a.id)
-		ret += ": "
-		ret += a.name
-		ret += "\n"
+		strBuilder.WriteString(strconv.Itoa(a.id) + ": " + a.name + "\n")
 	}
 
-	ret += "\n```"
+	strBuilder.WriteString("\n```")
 
-	return ret
+	return strBuilder.String()
+}
 }
 
 func playSound(playing *guildVoiceInstance, audioBuf []byte) error {
