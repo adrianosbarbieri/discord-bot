@@ -225,10 +225,12 @@ func messageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 	switch {
 	case cmd == "!a":
+		fallthrough
 	case cmd == "!audio":
 		err = cmdAudio(s, m, arg)
 
 	case cmd == "!aid":
+		fallthrough
 	case cmd == "!audioid":
 		err = cmdAudioID(s, m, arg)
 
