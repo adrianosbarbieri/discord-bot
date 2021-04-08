@@ -129,19 +129,10 @@ func joinVoice(s *discordgo.Session, m *discordgo.MessageCreate, audioBuf []byte
 		playing.mutex.Lock()
 
 		if !playing.isPlaying {
-			if playing.connection == nil {
-				playing.connection, err = s.ChannelVoiceJoin(m.GuildID, channelID, false, true)
-				if err != nil {
-					playing.mutex.Unlock()
-					return err
-				}
-			} else if playing.connection.ChannelID != channelID {
-				playing.connection.Close()
-				playing.connection, err = s.ChannelVoiceJoin(m.GuildID, channelID, false, true)
-				if err != nil {
-					playing.mutex.Unlock()
-					return err
-				}
+			playing.connection, err = s.ChannelVoiceJoin(m.GuildID, channelID, false, true)
+			if err != nil {
+				playing.mutex.Unlock()
+				return err
 			}
 
 			playing.isPlaying = true
