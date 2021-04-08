@@ -71,6 +71,7 @@ var especial = []string{
 	"deu aulaxx",
 	"tchama tchama",
 	"Um oferecimento Nielsbier, aqui o cervejeiro é você!",
+	"Bom demais ser monogâmico",
 }
 
 var adjetivoDmais = []string{
@@ -113,6 +114,7 @@ var jogar = []string{
 	"jogar",
 	"dar uma rabiada no",
 	"dar aulaxx no",
+	"dar uma mamado no",
 }
 
 var jogos = []string{
