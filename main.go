@@ -223,6 +223,8 @@ func messageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
 		arg = split[1]
 	}
 
+	arg = strings.Trim(arg, " ")
+
 	switch {
 	case cmd == "!a":
 		fallthrough
