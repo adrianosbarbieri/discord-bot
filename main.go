@@ -136,16 +136,29 @@ func joinVoice(s *discordgo.Session, m *discordgo.MessageCreate, audioBuf []byte
 			}
 
 			playing.isPlaying = true
-			playing.connection.Speaking(true)
+			err = playing.connection.Speaking(true)
+			if err != nil {
+				playing.mutex.Unlock()
+				return err
+			}
 
 			playing.mutex.Unlock()
 
 			err = playSound(playing, audioBuf)
+			if err != nil {
+				return err
+			}
 
 			playing.mutex.Lock()
 
 			playing.isPlaying = false
-			playing.connection.Speaking(false)
+
+			err = playing.connection.Speaking(false)
+			if err != nil {
+				playing.mutex.Unlock()
+				return err
+			}
+
 			playing.lastActive = time.Now().UTC()
 
 			playing.mutex.Unlock()
