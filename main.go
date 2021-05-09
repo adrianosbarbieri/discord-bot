@@ -138,6 +138,9 @@ func joinVoice(s *discordgo.Session, m *discordgo.MessageCreate, audioBuf []byte
 			playing.isPlaying = true
 			err = playing.connection.Speaking(true)
 			if err != nil {
+				playing.isPlaying = false
+				playing.connection.Disconnect()
+				playing.connection.Close()
 				playing.mutex.Unlock()
 				return err
 			}
@@ -146,6 +149,12 @@ func joinVoice(s *discordgo.Session, m *discordgo.MessageCreate, audioBuf []byte
 
 			err = playSound(playing, audioBuf)
 			if err != nil {
+				playing.mutex.Lock()
+				playing.isPlaying = false
+				playing.connection.Disconnect()
+				playing.connection.Close()
+				playing.connection = nil
+				playing.mutex.Unlock()
 				return err
 			}
 
@@ -155,6 +164,9 @@ func joinVoice(s *discordgo.Session, m *discordgo.MessageCreate, audioBuf []byte
 
 			err = playing.connection.Speaking(false)
 			if err != nil {
+				playing.connection.Disconnect()
+				playing.connection.Close()
+				playing.connection = nil
 				playing.mutex.Unlock()
 				return err
 			}
@@ -162,10 +174,6 @@ func joinVoice(s *discordgo.Session, m *discordgo.MessageCreate, audioBuf []byte
 			playing.lastActive = time.Now().UTC()
 
 			playing.mutex.Unlock()
-
-			if err != nil {
-				return err
-			}
 
 			return nil
 		}
