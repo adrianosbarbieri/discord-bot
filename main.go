@@ -52,7 +52,18 @@ var audioID map[int][]byte
 
 var guildInstances = make(map[string]*guildVoiceInstance)
 
+var audioList1 string
+var audioList2 string
+
 func getAudioList() string {
+	return audioList1
+}
+
+func getAudioList2() string {
+	return audioList2
+}
+
+func montaAudioList() {
 	strBuilder := strings.Builder{}
 
 	strBuilder.WriteString("Áudios disponíveis (em ordem alfabética): \n```\n")
@@ -63,10 +74,10 @@ func getAudioList() string {
 
 	strBuilder.WriteString("\n```")
 
-	return strBuilder.String()
+	audioList1 = strBuilder.String()
 }
 
-func getAudioList2() string {
+func montaAudioList2() {
 	l := len(audioArr)
 	audioArr2 := make([]*Audio, l)
 
@@ -87,7 +98,7 @@ func getAudioList2() string {
 
 	strBuilder.WriteString("\n```")
 
-	return strBuilder.String()
+	audioList2 = strBuilder.String()
 }
 
 func playSound(playing *guildVoiceInstance, audioBuf []byte) error {
@@ -412,6 +423,9 @@ func main() {
 	}
 
 	mathRand.Seed(int64(binary.LittleEndian.Uint64(b[:])))
+
+	montaAudioList()
+	montaAudioList2()
 
 	discord, err := discordgo.New("Bot " + token)
 	if err != nil {
