@@ -7,11 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	mathRand "math/rand"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -46,38 +44,53 @@ type guildVoiceInstance struct {
 	mutex      sync.Mutex
 }
 
+func (p *guildVoiceInstance) Disconnect() {
+	p.connection.Disconnect()
+	p.connection.Close()
+	p.connection = nil
+}
+
 var audioArr []Audio
 var audioName map[string][]byte
 var audioID map[int][]byte
 
 var guildInstances = make(map[string]*guildVoiceInstance)
 
-var audioList1 string
-var audioList2 string
+var audioList1 []string
+var audioList2 []string
 
-func getAudioList() string {
-	return audioList1
-}
+func montaAudioList() []string {
+	var audioList []string
 
-func getAudioList2() string {
-	return audioList2
-}
-
-func montaAudioList() {
+	limit := 1800
 	strBuilder := strings.Builder{}
 
-	strBuilder.WriteString("Áudios disponíveis (em ordem alfabética): \n```\n")
+	str := "Áudios disponíveis (em ordem alfabética): \n```\n"
+	curSize := len(str)
+
+	strBuilder.WriteString(str)
 
 	for _, a := range audioArr {
-		strBuilder.WriteString(strconv.Itoa(a.id) + ": " + a.name + "\n")
+		str = strconv.Itoa(a.id) + ": " + a.name + "\n"
+		size := len(str)
+		if size+curSize < limit {
+			strBuilder.WriteString(str)
+			curSize += size
+		} else {
+			curSize = 0
+			strBuilder.WriteString("\n```")
+			audioList = append(audioList, strBuilder.String())
+			strBuilder.Reset()
+			strBuilder.WriteString("```\n")
+		}
 	}
 
 	strBuilder.WriteString("\n```")
-
-	audioList1 = strBuilder.String()
+	audioList = append(audioList, strBuilder.String())
+	return audioList
 }
 
-func montaAudioList2() {
+func montaAudioList2() []string {
 	l := len(audioArr)
 	audioArr2 := make([]*Audio, l)
 
@@ -89,22 +102,40 @@ func montaAudioList2() {
 		return audioArr2[i].id < audioArr2[j].id
 	})
 
+	var audioList []string
+
+	limit := 1800
+	str := "Áudios disponíveis (em ordem numérica): \n```\n"
+	curSize := len(str)
+
 	strBuilder := strings.Builder{}
-	strBuilder.WriteString("Áudios disponíveis (em ordem numérica): \n```\n")
+	strBuilder.WriteString(str)
 
 	for _, a := range audioArr2 {
-		strBuilder.WriteString(strconv.Itoa(a.id) + ": " + a.name + "\n")
+		str = strconv.Itoa(a.id) + ": " + a.name + "\n"
+		size := len(str)
+		if size+curSize > limit {
+			curSize = 0
+			strBuilder.WriteString("\n```")
+			audioList = append(audioList, strBuilder.String())
+			strBuilder.Reset()
+			strBuilder.WriteString("```\n")
+		} else {
+			strBuilder.WriteString(str)
+			curSize += size
+		}
 	}
 
 	strBuilder.WriteString("\n```")
-
-	audioList2 = strBuilder.String()
+	audioList = append(audioList, strBuilder.String())
+	return audioList
 }
 
 func playSound(playing *guildVoiceInstance, audioBuf []byte) error {
 	opts := dca.StdEncodeOptions
 	opts.RawOutput = true
 	opts.Bitrate = 128
+	opts.Application = "lowdelay"
 
 	reader := bytes.NewBuffer(audioBuf)
 
@@ -162,9 +193,7 @@ func joinVoice(s *discordgo.Session, m *discordgo.MessageCreate, audioBuf []byte
 			if err != nil {
 				playing.mutex.Lock()
 				playing.isPlaying = false
-				playing.connection.Disconnect()
-				playing.connection.Close()
-				playing.connection = nil
+				playing.Disconnect()
 				playing.mutex.Unlock()
 				return err
 			}
@@ -175,9 +204,7 @@ func joinVoice(s *discordgo.Session, m *discordgo.MessageCreate, audioBuf []byte
 
 			err = playing.connection.Speaking(false)
 			if err != nil {
-				playing.connection.Disconnect()
-				playing.connection.Close()
-				playing.connection = nil
+				playing.Disconnect()
 				playing.mutex.Unlock()
 				return err
 			}
@@ -275,15 +302,37 @@ func messageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
 		err = changeGame(s, m, geraJogo())
 
 	case cmd == "!lista":
-		err = sendMessage(s, m, getAudioList())
+		err = cmdLista1(s, m)
 
 	case cmd == "!lista2":
-		err = sendMessage(s, m, getAudioList2())
+		err = cmdLista2(s, m)
 	}
 
 	if err != nil {
 		fmt.Println(err)
 	}
+}
+
+func cmdLista1(s *discordgo.Session, m *discordgo.MessageCreate) error {
+	for _, str := range audioList1 {
+		err := sendMessage(s, m, str)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func cmdLista2(s *discordgo.Session, m *discordgo.MessageCreate) error {
+	for _, str := range audioList2 {
+		err := sendMessage(s, m, str)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func cmdStop(s *discordgo.Session, m *discordgo.MessageCreate) {
@@ -334,6 +383,8 @@ func sendMessageTTS(s *discordgo.Session, m *discordgo.MessageCreate, msg string
 }
 
 func clearMessages(s *discordgo.Session, m *discordgo.MessageCreate) error {
+	timeNow := time.Now().UTC()
+
 	ids := make([]string, 0)
 
 	messages, err := s.ChannelMessages(m.ChannelID, 100, "", "", "")
@@ -342,13 +393,21 @@ func clearMessages(s *discordgo.Session, m *discordgo.MessageCreate) error {
 	}
 
 	for _, message := range messages {
-		if message.Author.ID == s.State.User.ID {
-			ids = append(ids, message.ID)
-		} else {
-			for _, cmd := range commands {
-				if strings.HasPrefix(message.Content, cmd) {
-					ids = append(ids, message.ID)
-					break
+		timestamp, err := message.Timestamp.Parse()
+		if err != nil {
+			return err
+		}
+
+		duration := timeNow.Sub(timestamp)
+		if duration <= 24*14*time.Hour {
+			if message.Author.ID == s.State.User.ID {
+				ids = append(ids, message.ID)
+			} else {
+				for _, cmd := range commands {
+					if strings.HasPrefix(message.Content, cmd) {
+						ids = append(ids, message.ID)
+						break
+					}
 				}
 			}
 		}
@@ -364,9 +423,7 @@ func disconnectWhenIdle() {
 		if g.connection != nil && !g.isPlaying {
 			diff := time.Now().UTC().Sub(g.lastActive)
 			if diff >= time.Second*60 {
-				g.connection.Disconnect()
-				g.connection.Close()
-				g.connection = nil
+				g.Disconnect()
 			}
 		}
 
@@ -384,24 +441,19 @@ func disconnectWhenIdleTick() {
 }
 
 func main() {
-	ex, err := os.Executable()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	exPath := filepath.Dir(ex)
-
 	token := os.Getenv("LUQUITO_BOT")
 	if len(token) == 0 {
 		panic("no token found")
 	}
 
-	audioArr, err = readAudioConfig(filepath.Join(exPath, "config.txt"))
+	var err error
+
+	audioArr, err = readAudioConfig("config.txt")
 	if err != nil {
 		panic(err)
 	}
 
-	loadAllFiles(exPath, audioArr)
+	loadAllFiles(audioArr)
 
 	sort.Slice(audioArr, func(i, j int) bool {
 		return audioArr[i].name < audioArr[j].name
@@ -424,8 +476,8 @@ func main() {
 
 	mathRand.Seed(int64(binary.LittleEndian.Uint64(b[:])))
 
-	montaAudioList()
-	montaAudioList2()
+	audioList1 = montaAudioList()
+	audioList2 = montaAudioList2()
 
 	discord, err := discordgo.New("Bot " + token)
 	if err != nil {
