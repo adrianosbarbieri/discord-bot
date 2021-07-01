@@ -5,20 +5,35 @@ import (
 	"strings"
 )
 
-var verboSemObj = []string{
+var verboDaUma = [...]string{
+	"mamada",
+	"sugada",
+	"desbaratinada",
+	"rabiada",
+	"segurada",
+	"encaixada",
+	"pegada",
+	"sabão em pózada",
+	"bimbada",
+	"cheirada",
+	"jantada",
+	"criticada",
+}
+
+var verboSemObj = [...]string{
 	"trollou",
 	"feedou",
 	"farmou",
 	"fodeu",
 }
 
-var verboClanUva = []string{
+var verboClanUva = [...]string{
 	"matar",
 	"mutar",
 	"mamar",
 }
 
-var moios = []string{
+var moios = [...]string{
 	"moios",
 	"broios",
 	"troios",
@@ -29,7 +44,7 @@ var moios = []string{
 	"baradas",
 }
 
-var clanUva = []string{
+var clanUva = [...]string{
 	"o Adriano",
 	"o Adriano",
 	"o Adriano",
@@ -47,9 +62,11 @@ var clanUva = []string{
 	"o Frost",
 	"o Josias",
 	"o Voraz",
+	"o Beach",
+	"a Débora",
 }
 
-var especial = []string{
+var especial = [...]string{
 	"Ó",
 	"EU SOU O LUQUITOOO AHHHH",
 	"tá na jungle farmando hard",
@@ -74,7 +91,7 @@ var especial = []string{
 	"Bom demais ser monogâmico",
 }
 
-var adjetivoDmais = []string{
+var adjetivoDmais = [...]string{
 	"gordo",
 	"carinhas",
 	"gado",
@@ -83,7 +100,7 @@ var adjetivoDmais = []string{
 	"pipinhas léguas",
 }
 
-var palavraDo = []string{
+var palavraDo = [...]string{
 	"baby",
 	"xesk",
 	"bresk",
@@ -91,7 +108,7 @@ var palavraDo = []string{
 	"bait",
 }
 
-var adicionalFinal = []string{
+var adicionalFinal = [...]string{
 	"papai",
 	"meu papai",
 	"pai",
@@ -104,11 +121,11 @@ var adicionalFinal = []string{
 	"meu patrício",
 }
 
-var adicionalInicio = []string{
+var adicionalInicio = [...]string{
 	"piá",
 }
 
-var jogar = []string{
+var jogar = [...]string{
 	"feedar no",
 	"dar uma feedada no",
 	"jogar",
@@ -117,7 +134,7 @@ var jogar = []string{
 	"dar uma mamado no",
 }
 
-var jogos = []string{
+var jogos = [...]string{
 	"Dota 2 (Lion mid)",
 	"Dota 2 (Pudge mid)",
 	"Dota 2 (Legion jungle)",
@@ -150,9 +167,15 @@ var jogos = []string{
 	"Badarant",
 }
 
-var erroAudioJaTocando = []string{
+var erroAudioJaTocando = [...]string{
 	"Uma coisa de cada vez",
 	"Só posso tocar um áudio",
+}
+
+func fraseDaUma() string {
+	r := rand.Intn(len(verboDaUma))
+	s := verboDaUma[r]
+	return "Dá uma " + s + " aqui"
 }
 
 func frasePiorQue() string {
@@ -234,7 +257,7 @@ func fraseAdicionalAmbas(s string) string {
 }
 
 func frase() string {
-	r := rand.Intn(8)
+	r := rand.Intn(9)
 
 	switch r {
 	case 0:
@@ -253,6 +276,8 @@ func frase() string {
 		return fraseEspecial()
 	case 7:
 		return fraseEuVouJogar()
+	case 8:
+		return fraseDaUma()
 	default:
 		return ""
 	}
